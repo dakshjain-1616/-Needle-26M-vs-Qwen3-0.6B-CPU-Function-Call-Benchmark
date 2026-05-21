@@ -38,9 +38,11 @@ class ToolCallDispatcher:
         if self.model_name == "needle":
             return NeedleBackend()
         elif self.model_name == "qwen3":
-            return Qwen3Backend()
+            return Qwen3Backend(prompted=False)
+        elif self.model_name == "qwen3-prompted":
+            return Qwen3Backend(prompted=True)
         else:
-            raise ValueError(f"Unknown model: {self.model_name}. Use 'needle' or 'qwen3'.")
+            raise ValueError(f"Unknown model: {self.model_name}. Use 'needle', 'qwen3', or 'qwen3-prompted'.")
     
     def dispatch(
         self, 
@@ -121,7 +123,7 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        choices=["needle", "qwen3"],
+        choices=["needle", "qwen3", "qwen3-prompted"],
         default="needle",
         help="Model to use for tool-call generation"
     )

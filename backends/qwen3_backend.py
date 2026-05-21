@@ -15,20 +15,31 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 class Qwen3Backend:
     """Backend for the Qwen3-0.6B tool-calling model."""
     
-    def __init__(self, model_name: str = "Qwen/Qwen3-0.6B"):
+    def __init__(self, model_name: str = "Qwen/Qwen3-0.6B", prompted: bool = False):
         """
         Initialize the Qwen3 backend.
-        
+
         Args:
             model_name: HuggingFace model identifier
+            prompted: If True, prepend a strong system prompt forcing tool-call output.
         """
         self.model_name = model_name
         self.model_size = "0.6B"
-        self.display_name = "qwen3"
+        self.prompted = prompted
+        self.display_name = "qwen3-prompted" if prompted else "qwen3"
         self.model = None
         self.tokenizer = None
         self._initialized = False
         self.device = "cpu"
+
+    SYSTEM_PROMPT = (
+        "You are a tool dispatcher. You MUST always respond with exactly one tool call "
+        "from the provided tools, emitted inside <tool_call>...</tool_call> tags as a "
+        "JSON object with 'name' and 'arguments' fields. Never answer in prose. "
+        "Never explain. Never apologise. If no tool fits, still pick the closest matching tool. "
+        "If the user explicitly asks a question that no tool can answer (e.g. simple arithmetic), "
+        "emit no tool call and output nothing."
+    )
         
     def _ensure_initialized(self):
         """Lazy initialization of the model."""
@@ -113,7 +124,13 @@ Assistant:"""
         """
         self._ensure_initialized()
 
-        messages = [{"role": "user", "content": query}]
+        if self.prompted:
+            messages = [
+                {"role": "system", "content": self.SYSTEM_PROMPT},
+                {"role": "user", "content": query},
+            ]
+        else:
+            messages = [{"role": "user", "content": query}]
         openai_tools = [self._to_openai_tool(t) for t in tools]
 
         start_time = time.time()

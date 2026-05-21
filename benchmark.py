@@ -156,7 +156,7 @@ def run_model(model: str, output_path: str, warmup: bool = True):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", choices=["needle", "qwen3"], required=True)
+    p.add_argument("--model", choices=["needle", "qwen3", "qwen3-prompted"], required=True)
     p.add_argument("--output", default="results/raw_log.jsonl")
     p.add_argument("--no-warmup", action="store_true")
     args = p.parse_args()

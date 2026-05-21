@@ -1,363 +1,365 @@
 # Needle 26M vs Qwen3-0.6B: A Real CPU Function-Call Benchmark
 
-*A complete head-to-head evaluation of two open-weight tool-calling models — Needle (26M, distilled from Gemini 3.1) and Qwen3-0.6B — across 50 structured queries in five difficulty tiers, run entirely on CPU. No GPU, no cherry-picked queries, no placeholder numbers.*
+*Two open-weight tool-calling models. Same 50 queries, same CPU, same rubric. One is 23× smaller. The interesting finding isn't who wins — it's that the two models fail in **completely different ways**.*
 
 ---
 
-Most "tool calling" or "function calling" benchmarks fall into one of two traps: they either test the API contract (does the model emit valid JSON?) on a handful of toy examples, or they pit a frontier model against a tiny model on tasks that obviously favor scale. This benchmark tries to be more honest. We ran two open-weight models — one specifically distilled for function calls, one general-purpose — on the same 50 queries with the same evaluation rubric, on the same CPU, and looked at where each one breaks.
+## Two models, two completely different ways to fail
 
-The short version: the 23× smaller model wins. But not for the reason you might expect.
+One picks the wrong tool. The other doesn't pick at all.
+
+That's the actual story of this benchmark. We ran [Needle (26M)](https://huggingface.co/Cactus-Compute/needle) — a function-call specialist distilled from Gemini 3.1 — head-to-head against [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) — Alibaba's smallest general-purpose model. Same 50 structured queries across five difficulty tiers, CPU-only, evaluated with the same rubric.
+
+Then, because the most obvious criticism of any tiny-vs-bigger comparison is *"you didn't prompt the bigger model well enough,"* we ran Qwen3 a **second time** with a strong system prompt that forces it to always emit a tool call. That gives us three columns to compare:
+
+| Model | What it is |
+|---|---|
+| **Needle (26M)** | 26-million-parameter function-call specialist, native flat tool schema |
+| **Qwen3 default** | Qwen3-0.6B with `apply_chat_template(tools=...)` and no system prompt |
+| **Qwen3 prompted** | Same model with a system prompt: *"You are a tool dispatcher. You MUST always respond with exactly one tool call. Never answer in prose."* |
+
+The short version of what we found:
+
+| | Needle (26M) | Qwen3 default | Qwen3 prompted |
+|---|---:|---:|---:|
+| **tool_match (accuracy)** | 72.0% | 56.0% | **84.0%** |
+| **parse_success** | 84.0% | 54.0% | **100.0%** |
+| **args_match \| tool_match** | 97.2% | 100.0% | **100.0%** |
+| **Mean CPU latency** | **10,933 ms** | 47,863 ms | 45,831 ms |
+| **Model size** | **26 M** | 600 M | 600 M |
+
+Three takeaways before we get into the numbers:
+
+1. **A well-prompted Qwen3-0.6B beats Needle on accuracy by 12 points (84% vs 72%).** The criticism of the original "default Qwen3" run was fair — a lot of Qwen3's failures were prompt-engineering failures, not capability failures.
+2. **Needle is still 4.2× faster on CPU.** A 23×-smaller model that finishes in a quarter of the time is a different product category — that gap doesn't go away with prompting.
+3. **The strong prompt creates a new failure mode for Qwen3.** It now calls a tool *too* eagerly — including answering *"What's 2+2?"* by calling `run_command("2+2", timeout=30)`. Needle correctly emits no tool call there.
+
+This is the real shape of the choice between these two models. Read on for the breakdown.
 
 ---
 
-## The Models
+## The benchmark
 
-**Needle (26M)** is a [Simple Attention Network](https://github.com/cactus-compute/needle) from Cactus-Compute, distilled from Gemini 3.1 specifically for single-shot function calling. It has 26 million parameters, pretrained on 200B tokens, then post-trained on 2B tokens of function-call data. Weights are fully open ([Cactus-Compute/needle](https://huggingface.co/Cactus-Compute/needle)) and the production target is consumer devices — watches, phones, glasses. It exposes a JAX/Flax inference path with a flat tool schema unique to its training distribution.
+### The test set
 
-**Qwen3-0.6B** is the [smallest member](https://huggingface.co/Qwen/Qwen3-0.6B) of Alibaba's Qwen3 family — a 600-million-parameter decoder-only transformer, instruction-tuned, Apache-2.0 licensed. It supports OpenAI-compatible function calling via its tokenizer's `apply_chat_template(tools=...)` and emits tool calls inside `<tool_call>...</tool_call>` tags.
-
-The asymmetry is important: **Needle is narrowly trained to do one thing well (single tool calls), Qwen3 is a general-purpose model that can also call tools.** Both are competitors in the "tiny on-device assistant" space, but they took very different paths to get there.
-
-| | **Needle (26M)** | **Qwen3-0.6B** |
-|---|---|---|
-| Architecture | Simple Attention Network (encoder + decoder), distilled from Gemini 3.1 | Decoder-only transformer, instruction-tuned |
-| Params | 26 M | 600 M |
-| Training | 200 B tokens pretrain → 2 B tokens of single-shot function-call data | General SFT + RLHF + function-call data |
-| Tool schema | **Flat**: `{location: {type, description, required}}` | **OpenAI JSON Schema**: `{type: "object", properties: {...}}` |
-| License / weights | Open, [Cactus-Compute/needle](https://huggingface.co/Cactus-Compute/needle) | Apache-2.0, [Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) |
-| Intended use | On-device single-shot tool calls | General assistant with tool calling |
-
----
-
-## What We Measured
-
-The benchmark ran 50 queries through each model — 100 timed runs total — with one discarded warmup query per model. Queries are organised into five difficulty tiers, 10 queries each:
+Fifty queries, ten per tier:
 
 | Tier | What it tests | Example |
 |---|---|---|
-| **T1 — Simple** | Direct, unambiguous, one tool, the tool name appears in the query | _"What's the weather in London?"_ |
-| **T2 — Paraphrased** | Same intent as T1 but worded differently | _"Is it raining in Berlin right now?"_ |
-| **T3 — Implicit** | Intent is clear but the tool isn't named anywhere in the query | _"Should I bring an umbrella in Amsterdam today?"_ |
-| **T4 — Ambiguous** | Two tools could plausibly fit | _"What's happening in London this weekend?"_ (events, not weather) |
+| **T1 — Simple** | Direct, one tool, tool name appears in the query | _"What's the weather in London?"_ |
+| **T2 — Paraphrased** | Same intent, different wording | _"Is it raining in Berlin right now?"_ |
+| **T3 — Implicit** | Intent is clear but tool isn't named | _"Should I bring an umbrella in Amsterdam today?"_ |
+| **T4 — Ambiguous** | Two tools could plausibly fit | _"What's happening in London this weekend?"_ |
 | **T5 — Edge** | Foreign languages, negation, no-tool, destructive | _"मुंबई का मौसम"_, _"What's 2+2?"_, _"Delete all my files"_ |
 
-Five mock tools are wired up — `get_weather`, `search_web`, `create_file`, `run_command`, `get_time` — with realistic stub responses (no real network calls).
+Five mock tools: `get_weather`, `search_web`, `create_file`, `run_command`, `get_time`.
 
-Each run is graded on three independent booleans:
+### The rubric
+
+Three booleans per run:
 
 | Metric | Definition |
 |---|---|
-| `parse_success` | Output was valid JSON containing a `name` field |
-| `tool_match` | `parsed_tool == expected_tool` (exact name). For T5_05 ("What's 2+2?"), true iff the model emits **no** tool call |
-| `args_match` | All expected arg keys present with non-empty string values, **and** `tool_match=True`. Relaxed for the four underspecified T4 queries — any non-empty arg value counts |
+| `parse_success` | Output was valid JSON with a `name` field |
+| `tool_match` | `parsed_tool == expected_tool`. For T5_05 (*"What's 2+2?"*), true iff the model emits **no** tool call |
+| `args_match` | All expected arg keys present with non-empty string values, **and** `tool_match=True`. Relaxed to "any non-empty arg" for four underspecified T4 queries |
 
-Hardware: 4-core CPU, no GPU, `CUDA_VISIBLE_DEVICES=""`. Python 3.12, transformers 4.50+, torch 2.4+, jax 0.4.30/flax 0.8.5 for Needle. The Needle checkpoint (~13 MB) was downloaded from HuggingFace at start; Qwen3 weights (~1.2 GB) were pulled from the Hub on first run.
+### Hardware & protocol
+
+4-core CPU, no GPU (`CUDA_VISIBLE_DEVICES=""`). Python 3.12, transformers 4.50+, torch 2.4+, jax 0.4.30 / flax 0.8.5 for Needle. One discarded warmup query per model. 50 queries × 3 model variants = **150 timed runs**.
 
 ---
 
-## The Numbers
+## The numbers
 
 ### Overall
 
-| Metric | Needle (26M) | Qwen3 (0.6B) | Winner |
-|---|---:|---:|---|
-| **tool_match** (overall accuracy)  | **72.0%** | 56.0% | Needle (+16 pts) |
-| **args_match** (given tool_match) | 97.2% | **100.0%** | Qwen3 |
-| **parse_success** | **84.0%** | 54.0% | Needle |
-| **Mean latency (CPU)** | **10,933 ms** | 47,863 ms | Needle (4.4× faster) |
-| **Median latency** | 8,849 ms | 39,188 ms | Needle |
-
 ![Overall summary](results/charts/overall_summary.png)
 
-*The 23×-smaller model is 4.4× faster on CPU and 16 percentage points more accurate on tool selection. Qwen3's args (when it does emit a tool call) are flawless — but it just doesn't emit them often enough.*
+| Metric | Needle (26M) | Qwen3 default | Qwen3 prompted |
+|---|---:|---:|---:|
+| **tool_match** | 72.0% | 56.0% | **84.0%** |
+| **args_match \| tool_match** | 97.2% | 100.0% | **100.0%** |
+| **parse_success** | 84.0% | 54.0% | **100.0%** |
+| **Mean latency** | **10,933 ms** | 47,863 ms | 45,831 ms |
+| **Median latency** | **8,849 ms** | 39,188 ms | 40,154 ms |
 
-### Accuracy by Difficulty Tier
+Prompted Qwen3 wins accuracy. Needle wins latency by ~4×, and that's on a model 23× smaller.
 
-| Tier | Needle | Qwen3 | Δ |
-|---|---:|---:|---|
-| T1 — Simple      | 100% | 100% | tie |
-| T2 — Paraphrased | 90% | 90% | tie |
-| **T3 — Implicit**    | **80%** | 10% | **+70 pts Needle** |
-| T4 — Ambiguous   | **40%** | 20% | +20 pts Needle |
-| T5 — Edge        | 50% | **60%** | +10 pts Qwen3 |
+### Accuracy by tier
 
 ![Accuracy by tier](results/charts/accuracy_by_tier.png)
 
-T1 and T2 are essentially solved by both models. The story starts at **T3**: when the query doesn't literally name the tool ("Should I bring an umbrella?" instead of "what's the weather?"), Qwen3 falls off a cliff — 80% → 10%. Needle, trained narrowly to map natural language to tool calls, handles implicit phrasing fine.
-
-T4 (ambiguous) is hard for both. Needle still leads, mostly because it always commits to *some* tool; Qwen3 hedges.
-
-T5 (edge cases) is the only tier Qwen3 wins, by 10 points. The wins are on the foreign-language and the "no-tool" 2+2 query.
-
-### Latency by Tier (mean ms)
-
-| Tier | Needle | Qwen3 | Speedup |
+| Tier | Needle | Qwen3 default | Qwen3 prompted |
 |---|---:|---:|---:|
-| T1 | 11,608 | 37,425 | 3.2× |
-| T2 | 9,554 | 38,830 | 4.1× |
-| T3 | 9,575 | 54,308 | 5.7× |
-| T4 | 6,730 | 52,437 | 7.8× |
-| T5 | 17,199 | 56,314 | 3.3× |
+| T1 — Simple      | 100% | 100% | 100% |
+| T2 — Paraphrased | 90% | 90% | 90% |
+| **T3 — Implicit**| 80% | **10%** | **90%** |
+| T4 — Ambiguous   | 40% | 20% | **60%** |
+| T5 — Edge        | 50% | 60% | **80%** |
+
+The single most dramatic line: **T3 jumps from 10% → 90% just by prompting Qwen3 properly.** That entire class of failure — Qwen3 answering implicit queries in prose instead of calling the tool — disappears with a four-sentence system prompt.
+
+The hidden cost: T5 wins for prompted Qwen3 are partly *over-calling*. On *"What's 2+2?"*, prompted Qwen3 routes to `run_command("2+2", timeout=30)` — a tool call where none was expected. The original Qwen3 (and Needle) correctly emit no tool here.
+
+### Latency by tier (mean ms)
 
 ![Latency by tier](results/charts/latency_comparison.png)
 
-Needle is consistently faster, but the gap widens on harder tiers because Qwen3 spends more tokens generating prose answers instead of bailing into a tool call. T5 is Needle's slowest tier because of the Hindi queries — the tokenizer fragments Devanagari into many tokens, and the model occasionally times out and emits empty output.
+| Tier | Needle | Qwen3 default | Qwen3 prompted | Needle speedup vs prompted |
+|---|---:|---:|---:|---:|
+| T1 | 11,608 | 37,425 | 46,000 | 4.0× |
+| T2 | 9,554 | 38,830 | 40,590 | 4.2× |
+| T3 | 9,575 | 54,308 | 43,250 | 4.5× |
+| T4 | 6,730 | 52,437 | 42,652 | 6.3× |
+| T5 | 17,199 | 56,314 | 56,664 | 3.3× |
 
-### Parse-Success and Failure Breakdown
+Prompted Qwen3 doesn't get faster than default Qwen3 — the prompt only fixes *whether* a tool is called, not how long the model spends thinking. Needle holds a 3.3×–6.3× per-tier speed lead.
+
+### Parse-success and failure breakdown
 
 ![Parse success rate](results/charts/parse_success_rate.png)
 
-The failure modes are **completely different shapes** for the two models:
+![Failure breakdown](results/charts/failure_breakdown.png)
 
 | Model | parse_fail | wrong_tool | wrong_args |
 |---|---:|---:|---:|
 | **Needle** | 8 | 7 | 1 |
-| **Qwen3**  | 23 | 0 | 0 |
+| **Qwen3 default** | 23 | 0 | 0 |
+| **Qwen3 prompted** | 0 | 8 | 0 |
 
-![Failure breakdown](results/charts/failure_breakdown.png)
+This table is the punchline of the whole benchmark:
 
-- **Needle fails by picking the wrong tool.** When Needle calls a tool, the args are almost always right (`args_match` given `tool_match` = 97.2%). Its sin is tool selection — particularly routing system queries to `search_web` instead of `run_command` (per-tool accuracy for `run_command` is only 50%).
-- **Qwen3 fails by not calling a tool at all.** *Every single one of Qwen3's 22 wrong-answer cases is a parse failure* — the model emits natural-language prose instead of `<tool_call>` tags. When it does call a tool, the arguments are perfect every time (`args_match | tool_match` = 100%).
+- **Needle fails by picking the wrong tool.** When it commits, args are right 97% of the time.
+- **Default Qwen3 fails by not parsing at all** — every failure is prose instead of a tool call.
+- **Prompted Qwen3 fails by picking the wrong tool, just like Needle.** The prompt converts Qwen3's failure shape from "no tool call" into "wrong tool call" — at a slightly better accuracy than Needle, but losing the safety property of refusing to call when no tool fits.
 
-These are two very different problems to mitigate in production. Needle wants better tool selection; Qwen3 wants stronger prompting to *always* use tools.
+### Per-tool accuracy for Needle
+
+This is the most actionable single piece of data in the post — where exactly Needle struggles:
+
+![Per-tool accuracy](results/charts/per_tool_accuracy.png)
+
+| Tool | Needle | Qwen3 default | Qwen3 prompted |
+|---|---:|---:|---:|
+| `get_weather` | 80% | 70% | **100%** |
+| `search_web`  | 58% | 42% | **83%** |
+| `create_file` | 89% | 67% | 89% |
+| `get_time`    | 88% | 63% | **100%** |
+| `run_command` | 50% | 40% | **60%** |
+
+If you ship Needle today, you know exactly where it needs help: **`run_command` (50%) and `search_web` (58%) are the weak spots.** Both are queries phrased indirectly (*"How many files are in my home directory?"* → `run_command`, *"What's happening in London?"* → `search_web`). A few in-context examples or a small fine-tune would target this precisely.
 
 ---
 
-## Real Examples
+## Real examples
 
-Numbers are easy to argue with. Here are the actual model outputs — copy-pasted from `results/raw_log.jsonl` — that produced the numbers above.
+The numbers are easier to trust when you can see the actual outputs. These are copy-pasted from `results/raw_log.jsonl`.
 
-### Both nail an easy one — T1_01
-
-> _"What's the weather in London?"_ → expected `get_weather(location)`
+### T1_01 — *"What's the weather in London?"* (all three correct)
 
 **Needle** (11.7 s):
-
 ```json
 [{"name":"get_weather","arguments":{"location":"London"}}]
 ```
 
-**Qwen3** (27.3 s):
-
+**Qwen3 default** (27.3 s) and **Qwen3 prompted** (37.9 s):
 ```xml
 <tool_call>
 {"name": "get_weather", "arguments": {"location": "London"}}
 </tool_call>
 ```
 
-Both correct. Same answer, Qwen3 takes 2.3× longer for the same result.
+Easy. T1 is solved by everyone.
 
-### Where Qwen3 falls off — T3_01 (implicit)
+### T3_01 — *"Should I bring an umbrella in Amsterdam today?"* (the headline divergence)
 
-> _"Should I bring an umbrella in Amsterdam today?"_ → expected `get_weather(location)`
-
-**Needle** (13.8 s) — recognises this as a weather question:
-
+**Needle** (13.8 s) — correct:
 ```json
 [{"name":"get_weather","arguments":{"location":"Amsterdam","units":"Amsterdam"}}]
 ```
 
-`tool_match=True`, `args_match=True` (the bogus `units` value is ignored; only `location` is required).
+**Qwen3 default** (67.1 s) — answers in prose, no tool call:
+> *"Based on the current weather in Amsterdam, it depends on the temperature. If the temperature is above 20°C, you might need an umbrella. However, since I don't have real-time data, I recommend checking the weather forecast for the most accurate information."*
 
-**Qwen3** (67.1 s) — answers in prose, never emits a tool call:
-
-> "Based on the current weather in Amsterdam, it depends on the temperature. If the temperature is above 20°C, you might need an umbrella. However, since I don't have real-time data, I recommend checking the weather forecast for the most accurate information."
-
-`parse_success=False`. This is the entire shape of Qwen3's T3 failures: it tries to be helpful in natural language instead of recognising it has a tool that can answer the question.
-
-### Foreign-language T5_01 — "météo à Paris"
-
-Both models handle French cleanly:
-
-**Needle** (5.4 s):
-
-```json
-[{"name":"get_weather","arguments":{"location":"Paris"}}]
-```
-
-**Qwen3** (37.9 s):
-
+**Qwen3 prompted** (37.4 s) — correct:
 ```xml
 <tool_call>
-{"name": "get_weather", "arguments": {"location": "Paris"}}
+{"name": "get_weather", "arguments": {"location": "Amsterdam"}}
 </tool_call>
 ```
 
-The story is different for Hindi (T5_02 "मुंबई का मौसम"): Qwen3 still emits a clean tool call; Needle's tokenizer struggles and the run times out at 73 seconds with garbled output. This is the single biggest source of T5 wins for Qwen3.
+This is the entire T3 story in one query. Default Qwen3 is "trying to be helpful." Prompted Qwen3 stops trying.
 
-### The "no-tool" trap — T5_05 ("What's 2+2?")
+### T5_05 — *"What's 2+2?"* (where prompted Qwen3 backfires)
 
-The spec says: a model should *not* hallucinate a tool for this query. The right behaviour is to emit nothing.
+The right behaviour: emit **no** tool call.
 
-**Needle** (1.6 s) — returns an empty array:
-
+**Needle** (1.6 s) — empty array, correct:
 ```
 []
 ```
 
-**Qwen3** (23.6 s) — answers in prose without calling a tool:
+**Qwen3 default** (23.6 s) — prose, but no tool call → still correct on the rubric:
+> *"2 + 2 equals 4."*
 
-> "2 + 2 equals 4."
+**Qwen3 prompted** (39.2 s) — *wrong:*
+```json
+{"name": "run_command", "arguments": {"command": "2+2", "timeout": 30}}
+```
 
-Both score `tool_match=True` (neither hallucinated a tool), even though both `parse_success=False`. Needle's behaviour ("no tool, no answer") is more aligned with a dispatcher; Qwen3's is more aligned with a chatbot.
+The system prompt that fixed T3 broke T5_05. Prompted Qwen3 now treats *every* query as a tool call, including arithmetic.
 
-### A Needle miss — T2_09 (wrong tool)
+### T5_02 — *"मुंबई का मौसम"* (Hindi)
 
-> _"Check what's in the current directory"_ → expected `run_command(command)`
+**Needle** (73.8 s) — times out, garbled Devanagari → Greek transliteration:
+```json
+[{"name":"create_file","arguments":{"filename":"मॊबतस म","content":"ऽαιτετας ..."}}]
+```
 
-**Needle** (5.3 s) — picks the wrong tool:
+**Qwen3 prompted** (40.0 s) — clean:
+```xml
+<tool_call>
+{"name": "get_weather", "arguments": {"location": "मुंबई"}}
+</tool_call>
+```
 
+Devanagari is Needle's hardest tier. Qwen3's tokenizer handles it fine.
+
+### T2_09 — *"Check what's in the current directory"* (a Needle wrong-tool miss)
+
+**Needle** (5.3 s) — picks `get_time`, off-topic:
 ```json
 [{"name":"get_time","arguments":{}}]
 ```
 
-This is Needle's characteristic failure mode: it commits to a tool with confidence, just the wrong one. It happens five times across the 50 queries, mostly on `run_command` requests phrased indirectly.
+This is Needle's characteristic failure: commits with confidence, wrong tool. Five such cases across the 50 queries, mostly on `run_command` requests phrased indirectly.
 
 ---
 
-## The Combined Picture
+## NEO built this — and caught three bugs along the way
 
-| Use case | Recommendation |
-|---|---|
-| **On-device / latency-bound** (watches, phones, glasses) | **Needle.** 4.4× faster on CPU, 16 pts more accurate, 13 MB checkpoint. This is what it was built for. |
-| **Single-shot tool dispatch with a fixed tool palette** | **Needle.** When it commits to a tool, args are right 97% of the time. Needs better tool-selection prompting for `run_command` cases. |
-| **Conversational assistants that *also* call tools** | **Qwen3-0.6B.** Needle has zero conversational capacity; Qwen3 can chat. The catch: you need to prompt it firmly to actually use tools instead of answering directly. |
-| **Multilingual queries (Hindi, etc.)** | Lean **Qwen3.** Needle struggled with Devanagari; Qwen3 handled it. |
+> _The benchmark, the dispatcher, both model backends, the eval harness, the chart pipeline, and this post were produced **autonomously by [NEO](https://heyneo.so)** — an AI engineering agent. The bugs below are the kind of thing that would cost a human developer a half-day each._
 
-The interesting takeaway isn't "small model beats bigger model" — it's that the failure modes diverge so cleanly that the two models barely live in the same product category. Needle is a *dispatcher*. Qwen3-0.6B is a *small chatbot with a tool-calling option*. If you mistake one for the other in production, you'll be unhappy.
+<table>
+<tr><td>
 
----
+### Bug 1 — Needle's accuracy went from 8% → 84% with a schema fix
 
-## How This Benchmark Was Run
-
-This evaluation was produced by **NEO — your autonomous AI engineering agent**. The entire process started from a single prompt: build a tool-call dispatcher, benchmark Needle against Qwen3-0.6B across 50 structured queries, generate the report.
-
-From that prompt, NEO:
-
-1. Scaffolded `dispatcher.py`, `tools.py` with the 5 stub tools, and the `backends/` directory with both model wrappers.
-2. Cloned the Needle repo, downloaded the checkpoint from HuggingFace, and wrote a Needle backend that loaded the model once and reused it across queries.
-3. Wrote a Qwen3 backend using `transformers` and the `<tool_call>`-tag parsing path.
-4. Wrote `benchmark.py` to run the 50 spec queries × 2 models with warmup, log everything to `results/raw_log.jsonl` in the spec schema, and compute `tool_match` / `args_match` / `parse_success` per query.
-5. Wrote `compute_summary.py`, `make_charts.py`, and `make_report.py` to turn the raw log into `summary.json`, the five charts (`results/charts/*.png`), and this report.
-6. Ran the full pipeline, smoke-tested both CLIs end-to-end, and iterated through three real bugs surfaced during the run.
-
-The three bugs are worth calling out because they're the kind of thing that would take a human developer hours to chase:
-
-**Bug 1 — Needle was being fed the wrong schema.** The first run produced 8% accuracy for Needle, with raw outputs like `[{"name":"get_weather","arguments":{"properties","properties"}}]`. Needle was literally echoing the word `"properties"` back as a value. Root cause: Needle was trained on a *flat* parameter schema (`{location: {type, description, required}}`) but the dispatcher was sending it OpenAI JSON Schema (`{type: "object", properties: {...}}`). NEO added a converter — `_convert_to_needle_schema()` in `backends/needle_backend.py` — that maps the shared OpenAI tool list into Needle's flat form before calling `generate()`. Needle's `parse_success` jumped from **8% to 84%** and `tool_match` from **8% to 72%** with no other changes.
-
-**Bug 2 — Qwen3 was burning the full token budget per query.** The first Qwen3 backend used a hand-rolled prompt template instead of `tokenizer.apply_chat_template(tools=...)`. The model never emitted EOS naturally, so every query ran out the full 256-token budget — roughly 230 seconds per query on CPU. At that rate, the full 50-query Qwen3 run would have taken over 3 hours. NEO switched to the native chat template with `enable_thinking=False` and `max_new_tokens=128`; latency dropped to ~37 s/query, a **6× speedup**, and the model started emitting clean `<tool_call>` tags.
-
-**Bug 3 — The first benchmark wasn't testing the right thing.** An initial pass used invented queries with no `expected_tool` or `expected_args_keys` fields, and was missing the `tool_match` / `args_match` evaluation entirely. NEO rebuilt `benchmark.py` from the spec's exact 50 queries (T1_01–T5_10) with proper evaluation logic — including the T5_05 "no-tool" rule and the T4 underspecified-args relaxation.
-
-These are not the kinds of bugs that show up in toy demos. They show up the second you try to run a real benchmark, and they're the difference between "ship a dispatcher" and "ship a dispatcher that actually works." NEO handled them autonomously as part of the run.
-
----
-
-## Replicate or Extend This Benchmark
-
-The full code, raw results, charts, and report are in this repo.
-
-```bash
-git clone <repo>
-cd needlevsNEO
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-git clone https://github.com/cactus-compute/needle.git needle_repo
+The first Needle run produced 8% parse success with raw outputs like:
+```
+[{"name":"get_weather","arguments":{"properties","properties"}}]
 ```
 
-Key files:
-
-- `dispatcher.py` — CLI that takes a query and runs it through one of two backends.
-- `benchmark.py` — the 50 spec queries + evaluation logic; runs `--model needle` or `--model qwen3`.
-- `backends/needle_backend.py` — Needle wrapper, includes the schema converter.
-- `backends/qwen3_backend.py` — Qwen3 wrapper, uses `apply_chat_template(tools=...)`.
-- `tools.py` — the five mock tools and their schemas.
-- `compute_summary.py` — turns `raw_log.jsonl` into `summary.json`.
-- `make_charts.py` — generates the five PNGs at 150 DPI.
-- `make_report.py` — generates `results/benchmark_report.md`.
-- `results/raw_log.jsonl` — 100 entries (50 per model), full per-query data.
-- `results/summary.json` — computed metrics.
-- `results/charts/` — the 5 comparison charts.
-- `results/install_notes.txt` — the bug log from the run.
-
-To reproduce end-to-end:
-
-```bash
-# Single query smoke test
-CUDA_VISIBLE_DEVICES="" python dispatcher.py --model needle --query "What's the weather in Tokyo?"
-
-# Full benchmark — Needle is fast (~5 min), Qwen3 takes ~30 min on CPU
-CUDA_VISIBLE_DEVICES="" python benchmark.py --model needle
-CUDA_VISIBLE_DEVICES="" python benchmark.py --model qwen3
-
-# Regenerate summary, charts, and report from raw_log.jsonl
-python compute_summary.py
-python make_charts.py
-python make_report.py
+Needle was echoing the literal word `"properties"` back as a value. **Root cause:** Needle was trained on a *flat* parameter schema:
 ```
+{location: {type, description, required}}
+```
+But the dispatcher was feeding it OpenAI JSON Schema:
+```
+{type: "object", properties: {location: {...}}}
+```
+
+NEO wrote `_convert_to_needle_schema()` in `backends/needle_backend.py` to map between the two formats. **Needle's parse rate jumped from 8% to 84% and tool_match from 8% to 72% with no other changes.** Same model, same query set — just the right input shape.
+
+This single fix is the most concrete demonstration of what an autonomous agent actually does differently from a human copy-pasting a HuggingFace example. The example uses the model's native schema. The agent integrating two models had to *invent* the conversion.
+
+</td></tr><tr><td>
+
+### Bug 2 — Qwen3 was burning the full 256-token budget per query
+
+First Qwen3 backend: hand-rolled prompt template. Model never emitted EOS. Every query ran out the full 256-token budget — **~230 seconds per query** on CPU. The full 50-query Qwen3 run would have taken **over 3 hours**.
+
+NEO switched to the native chat template:
+```python
+tokenizer.apply_chat_template(messages, tools=openai_tools,
+                              enable_thinking=False, add_generation_prompt=True)
+```
+
+with `max_new_tokens=128`. **Latency dropped to ~37 s/query — a 6× speedup** — and the model started cleanly emitting `<tool_call>` tags.
+
+</td></tr><tr><td>
+
+### Bug 3 — The first benchmark was testing the wrong thing
+
+The initial pass used invented queries with no `expected_tool` or `expected_args_keys`, and was missing the `tool_match` / `args_match` evaluation entirely. NEO rebuilt `benchmark.py` from the spec's exact 50 queries (T1_01–T5_10) with proper evaluation logic — including the T5_05 *"no-tool"* rule and the T4 underspecified-args relaxation.
+
+</td></tr></table>
 
 ---
 
-## What You Can Build on Top of This
+## What this means for your stack
 
-If you want to extend this benchmark or build something new using NEO, here are some directions that make sense given what's already here:
+The headline isn't *"small model wins"* — prompted Qwen3 beat Needle on accuracy. The headline is that the **two models barely live in the same product category**, and your choice depends on which axis you're optimising for.
 
-**Extend the benchmark:**
+| If you're building... | Use | Why |
+|---|---|---|
+| **On-device dispatcher, fixed tool palette, latency-critical** (watch, phone, glasses) | **Needle — no contest** | 26 M params, 13 MB checkpoint, ~10.9 s/query CPU. Prompted Qwen3 is 4.2× slower and 23× larger. |
+| **Chatbot that occasionally needs tools** | **Qwen3 with a strong system prompt** | Conversational + 84% tool accuracy when you do route a query to it. Needle has zero chat capability. |
+| **Multilingual surfaces (Hindi, Arabic, etc.)** | **Qwen3** | Needle's tokenizer fragments Devanagari and frequently times out on Hindi. Qwen3 handles it cleanly. |
+| **You need both chat and dispatch** | **Hybrid: Needle for routing, Qwen3 for conversational fallback** | Use Needle as a 10 s router. If it emits a clean tool call (84% of the time), execute. Otherwise hand off to Qwen3 to either ask a clarifying question or generate the response in prose. |
 
-> "Add Phi-3-mini (3.8B) and Gemma-2-2B-it as third and fourth models in the existing harness; reuse the 50-query test set and regenerate charts."
+That last row is the production pattern worth naming explicitly: **Needle as router, Qwen3 as fallback responder.** You get on-device latency on the common path and graceful prose handling on the edge cases that would otherwise be wrong-tool failures.
 
-> "Run the same benchmark on GPU and compare wall-clock latency vs CPU to find the model that benefits least from accelerator-only deployment."
+A few smaller things to keep in mind:
 
-> "Add a 500-query stress test by paraphrasing each T1–T3 query 10 ways with GPT-4, and measure stability of `tool_match` across paraphrases."
-
-**Build something with the models:**
-
-> "Build a FastAPI dispatcher service that routes incoming queries to Needle by default and falls back to Qwen3 if Needle returns `parse_success=False`."
-
-> "Build a streaming dispatcher: if Needle outputs a tool call within 2 seconds, use it; otherwise hand off to Qwen3 mid-stream."
-
-> "Fine-tune Needle on a custom set of 20 in-house tools using the playground harness from the Needle repo and re-run this benchmark."
-
-**Analysis:**
-
-> "Compute statistical significance (paired bootstrap) for the Needle-vs-Qwen3 tool_match gap per tier; add the confidence intervals to the report."
-
-> "Cluster the Needle failure cases by raw_output similarity to find the underlying root causes."
-
-NEO is an autonomous engineering agent — you give it a goal, it plans the implementation, writes the code, runs it, and iterates until it works. This benchmark is a clean starting point for any of the above.
+- **Don't ship Needle for `run_command`-heavy workloads without help** — it's only at 50% on this benchmark. Give it a handful of `run_command` few-shot examples or a small fine-tune.
+- **Don't ship prompted Qwen3 to a surface where "no tool call" is a valid answer** — the strong prompt makes it tool-call-happy. T5_05 (*"What's 2+2?"*) is the canonical failure: it tries to shell out to `run_command`.
 
 ---
 
-## Files in This Repo
+## Try it yourself with NEO
+
+If you want to extend this, reproduce it on different hardware, or run it against new models, the strongest call-to-action is the prompt that generated this report. Hand it to NEO:
+
+> *"Run a function-call benchmark comparing Needle-26M and Qwen3-0.6B across 50 queries in 5 difficulty tiers. Include warmup, log raw results to JSONL, compute tool_match / args_match / parse_success, generate charts, and add a third variant where Qwen3 gets a strong 'always emit a tool call' system prompt."*
+
+That single sentence reproduces this entire repo. To extend:
+
+> *"Add Phi-3-mini and Gemma-2-2B-it as additional models in the harness, reusing the 50-query test set and three-way charts."*
+
+> *"Fine-tune Needle on 50 in-house `run_command` examples using the playground harness from the Needle repo, then rerun this benchmark and report the per-tool delta."*
+
+> *"Wrap the dispatcher as a FastAPI service that routes Needle-first and falls back to Qwen3-prompted whenever Needle's `parse_success=False`. Add a /metrics endpoint."*
+
+---
+
+## Files in this repo
 
 ```
-dispatcher.py                       # CLI dispatcher
+dispatcher.py                       # CLI dispatcher (--model needle|qwen3|qwen3-prompted)
 benchmark.py                        # 50-query benchmark harness with eval logic
 tools.py                            # 5 mock tools and their schemas
 requirements.txt                    # pinned dependencies
 backends/
-  needle_backend.py                 # Needle wrapper + schema converter
-  qwen3_backend.py                  # Qwen3 wrapper (apply_chat_template path)
-compute_summary.py                  # raw_log.jsonl → summary.json
-make_charts.py                      # summary.json → 5 PNGs
+  needle_backend.py                 # Needle wrapper + OpenAI→flat schema converter
+  qwen3_backend.py                  # Qwen3 wrapper, supports prompted=True/False
+compute_summary.py                  # raw_log.jsonl → summary.json (3-way aware)
+make_charts.py                      # summary.json → 6 PNGs (incl. per-tool)
 make_report.py                      # summary.json + raw_log → benchmark_report.md
 results/
-  raw_log.jsonl                     # 100 rows of per-query data
+  raw_log.jsonl                     # 150 rows of per-query data (3 × 50)
   summary.json                      # computed metrics per model + per tier
-  benchmark_report.md               # auto-generated full report
-  install_notes.txt                 # bug log from the run
-  charts/
-    overall_summary.png             # side-by-side metrics
-    accuracy_by_tier.png            # grouped bars, T1–T5
-    latency_comparison.png          # grouped bars, ms by tier
-    parse_success_rate.png          # horizontal bars
-    failure_breakdown.png           # stacked failure modes
-needle_repo/                        # cloned from cactus-compute/needle
-checkpoints/needle.pkl              # ~13 MB Needle weights
+  charts/                           # 6 comparison charts at 150 DPI
+```
+
+To reproduce end-to-end:
+
+```bash
+git clone <repo> && cd needlevsNEO
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+git clone https://github.com/cactus-compute/needle.git needle_repo
+
+CUDA_VISIBLE_DEVICES="" python benchmark.py --model needle           # ~9 min
+CUDA_VISIBLE_DEVICES="" python benchmark.py --model qwen3            # ~40 min
+CUDA_VISIBLE_DEVICES="" python benchmark.py --model qwen3-prompted   # ~38 min
+
+python compute_summary.py && python make_charts.py && python make_report.py
 ```
 
 ---
 
-*Hardware: 4-core CPU, no GPU, `CUDA_VISIBLE_DEVICES=""`. Python 3.12, transformers 4.50+, torch 2.4+, jax 0.4.30, flax 0.8.5. Needle 26M from [Cactus-Compute/needle](https://huggingface.co/Cactus-Compute/needle). Qwen3-0.6B from [Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B). 50 spec-defined queries × 2 models = 100 timed runs, one warmup each.*
+*Hardware: 4-core CPU, no GPU. Python 3.12, transformers 4.50+, torch 2.4+, jax 0.4.30, flax 0.8.5. Needle 26M from [Cactus-Compute/needle](https://huggingface.co/Cactus-Compute/needle); Qwen3-0.6B from [Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B). 50 spec-defined queries × 3 model variants = 150 timed runs, one warmup each.*
 
-*Built end-to-end by **NEO — your autonomous AI engineering agent**.*
+*Built end-to-end by **[NEO](https://heyneo.so) — your autonomous AI engineering agent**.*

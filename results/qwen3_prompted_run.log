@@ -1,0 +1,57 @@
+[qwen3-prompted] warmup...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Loading Qwen3 model: Qwen/Qwen3-0.6B
+Loading weights:   0%|          | 0/311 [00:00<?, ?it/s]Loading weights:   0%|          | 1/311 [00:00<00:36,  8.45it/s]Loading weights:  47%|████▋     | 145/311 [00:00<00:00, 784.70it/s]Loading weights:  76%|███████▌  | 236/311 [00:00<00:00, 832.88it/s]Loading weights: 100%|██████████| 311/311 [00:00<00:00, 779.38it/s]
+Qwen3 model loaded successfully
+[qwen3-prompted] warmup done
+[qwen3-prompted] qwen3-prompted_001 T1_01 parse=True tm=True am=True 37852ms (37.9s)
+[qwen3-prompted] qwen3-prompted_002 T1_02 parse=True tm=True am=True 44839ms (44.8s)
+[qwen3-prompted] qwen3-prompted_003 T1_03 parse=True tm=True am=True 55178ms (55.2s)
+[qwen3-prompted] qwen3-prompted_004 T1_04 parse=True tm=True am=True 41524ms (41.5s)
+[qwen3-prompted] qwen3-prompted_005 T1_05 parse=True tm=True am=True 47161ms (47.2s)
+[qwen3-prompted] qwen3-prompted_006 T1_06 parse=True tm=True am=True 37951ms (38.0s)
+[qwen3-prompted] qwen3-prompted_007 T1_07 parse=True tm=True am=True 55712ms (55.7s)
+[qwen3-prompted] qwen3-prompted_008 T1_08 parse=True tm=True am=True 38928ms (38.9s)
+[qwen3-prompted] qwen3-prompted_009 T1_09 parse=True tm=True am=True 49938ms (49.9s)
+[qwen3-prompted] qwen3-prompted_010 T1_10 parse=True tm=True am=True 50919ms (50.9s)
+[qwen3-prompted] qwen3-prompted_011 T2_01 parse=True tm=True am=True 37261ms (37.3s)
+[qwen3-prompted] qwen3-prompted_012 T2_02 parse=True tm=True am=True 39223ms (39.2s)
+[qwen3-prompted] qwen3-prompted_013 T2_03 parse=True tm=True am=True 47595ms (47.6s)
+[qwen3-prompted] qwen3-prompted_014 T2_04 parse=True tm=True am=True 39078ms (39.1s)
+[qwen3-prompted] qwen3-prompted_015 T2_05 parse=True tm=True am=True 43627ms (43.6s)
+[qwen3-prompted] qwen3-prompted_016 T2_06 parse=True tm=True am=True 36575ms (36.6s)
+[qwen3-prompted] qwen3-prompted_017 T2_07 parse=True tm=True am=True 38930ms (38.9s)
+[qwen3-prompted] qwen3-prompted_018 T2_08 parse=True tm=True am=True 38815ms (38.8s)
+[qwen3-prompted] qwen3-prompted_019 T2_09 parse=True tm=False am=False 35689ms (35.7s)
+[qwen3-prompted] qwen3-prompted_020 T2_10 parse=True tm=True am=True 49105ms (49.1s)
+[qwen3-prompted] qwen3-prompted_021 T3_01 parse=True tm=True am=True 37405ms (37.4s)
+[qwen3-prompted] qwen3-prompted_022 T3_02 parse=True tm=True am=True 37114ms (37.1s)
+[qwen3-prompted] qwen3-prompted_023 T3_03 parse=True tm=True am=True 50382ms (50.4s)
+[qwen3-prompted] qwen3-prompted_024 T3_04 parse=True tm=True am=True 38177ms (38.2s)
+[qwen3-prompted] qwen3-prompted_025 T3_05 parse=True tm=False am=False 52256ms (52.3s)
+[qwen3-prompted] qwen3-prompted_026 T3_06 parse=True tm=True am=True 35852ms (35.9s)
+[qwen3-prompted] qwen3-prompted_027 T3_07 parse=True tm=True am=True 46669ms (46.7s)
+[qwen3-prompted] qwen3-prompted_028 T3_08 parse=True tm=True am=True 43494ms (43.5s)
+[qwen3-prompted] qwen3-prompted_029 T3_09 parse=True tm=True am=True 36926ms (36.9s)
+[qwen3-prompted] qwen3-prompted_030 T3_10 parse=True tm=True am=True 54228ms (54.2s)
+[qwen3-prompted] qwen3-prompted_031 T4_01 parse=True tm=True am=True 40496ms (40.5s)
+[qwen3-prompted] qwen3-prompted_032 T4_02 parse=True tm=True am=True 40403ms (40.4s)
+[qwen3-prompted] qwen3-prompted_033 T4_03 parse=True tm=True am=True 39280ms (39.3s)
+[qwen3-prompted] qwen3-prompted_034 T4_04 parse=True tm=False am=False 45492ms (45.5s)
+[qwen3-prompted] qwen3-prompted_035 T4_05 parse=True tm=True am=True 40274ms (40.3s)
+[qwen3-prompted] qwen3-prompted_036 T4_06 parse=True tm=True am=True 36265ms (36.3s)
+[qwen3-prompted] qwen3-prompted_037 T4_07 parse=True tm=False am=False 36843ms (36.8s)
+[qwen3-prompted] qwen3-prompted_038 T4_08 parse=True tm=False am=False 54329ms (54.3s)
+[qwen3-prompted] qwen3-prompted_039 T4_09 parse=True tm=True am=True 57811ms (57.8s)
+[qwen3-prompted] qwen3-prompted_040 T4_10 parse=True tm=False am=False 35330ms (35.3s)
+[qwen3-prompted] qwen3-prompted_041 T5_01 parse=True tm=True am=True 32363ms (32.4s)
+[qwen3-prompted] qwen3-prompted_042 T5_02 parse=True tm=True am=True 40033ms (40.0s)
+[qwen3-prompted] qwen3-prompted_043 T5_03 parse=True tm=True am=True 37202ms (37.2s)
+[qwen3-prompted] qwen3-prompted_044 T5_04 parse=True tm=True am=True 206860ms (206.9s)
+[qwen3-prompted] qwen3-prompted_045 T5_05 parse=True tm=False am=False 39236ms (39.2s)
+[qwen3-prompted] qwen3-prompted_046 T5_06 parse=True tm=True am=True 38141ms (38.1s)
+[qwen3-prompted] qwen3-prompted_047 T5_07 parse=True tm=True am=True 42296ms (42.3s)
+[qwen3-prompted] qwen3-prompted_048 T5_08 parse=True tm=True am=True 41443ms (41.4s)
+[qwen3-prompted] qwen3-prompted_049 T5_09 parse=True tm=True am=True 35863ms (35.9s)
+[qwen3-prompted] qwen3-prompted_050 T5_10 parse=True tm=False am=False 53201ms (53.2s)

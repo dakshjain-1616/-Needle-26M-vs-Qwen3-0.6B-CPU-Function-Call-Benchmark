@@ -67,12 +67,47 @@
       "wrong_args": 0
     }
   },
+  "qwen3-prompted": {
+    "n": 50,
+    "tool_match_rate": 0.84,
+    "args_match_rate_given_tool_match": 1.0,
+    "parse_success_rate": 1.0,
+    "mean_latency_ms": 45831.3,
+    "median_latency_ms": 40153.5,
+    "accuracy_by_tier": {
+      "T1": 1.0,
+      "T2": 0.9,
+      "T3": 0.9,
+      "T4": 0.6,
+      "T5": 0.8
+    },
+    "latency_by_tier_ms": {
+      "T1": 46000.2,
+      "T2": 40589.8,
+      "T3": 43250.3,
+      "T4": 42652.3,
+      "T5": 56663.8
+    },
+    "per_tool_accuracy": {
+      "get_weather": 1.0,
+      "search_web": 0.8333,
+      "create_file": 0.8889,
+      "get_time": 1.0,
+      "run_command": 0.6
+    },
+    "failure_breakdown": {
+      "parse_fail": 0,
+      "wrong_tool": 8,
+      "wrong_args": 0
+    }
+  },
   "meta": {
-    "total_runs": 100,
+    "total_runs": 150,
     "queries_per_model": 50,
     "models": [
       "needle",
-      "qwen3"
+      "qwen3",
+      "qwen3-prompted"
     ]
   }
 }

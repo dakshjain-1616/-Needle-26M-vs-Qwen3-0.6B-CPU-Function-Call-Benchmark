@@ -84,8 +84,9 @@ def main():
         by_model[e["model"]].append(e)
 
     summary = {}
-    for model in ("needle", "qwen3"):
-        summary[model] = metrics_for(by_model[model])
+    for model in ("needle", "qwen3", "qwen3-prompted"):
+        if by_model[model]:
+            summary[model] = metrics_for(by_model[model])
 
     summary["meta"] = {
         "total_runs": len(entries),
