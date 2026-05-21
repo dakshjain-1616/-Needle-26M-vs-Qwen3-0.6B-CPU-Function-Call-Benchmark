@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+
+# Virtualenvs
+venv/
+.venv/
+env/
+
+# Local model weights (downloaded at first run — see README)
+checkpoints/
+*.pkl
+*.safetensors
+*.bin
+
+# Cloned external repos
+needle_repo/
+
+# IDE / editor
+.vscode/
+.idea/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build/dist
+dist/
+build/
+
+# Internal artefacts not for publication
+plans/
+results/dispatch_log.jsonl
+generate_charts.py
+generate_report.py
+"propmt.md "

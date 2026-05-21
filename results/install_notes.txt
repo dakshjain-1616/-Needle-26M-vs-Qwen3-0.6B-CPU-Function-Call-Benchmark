@@ -1,0 +1,52 @@
+Install / Run Notes
+====================
+
+Environment
+- Python 3.12, CPU-only (CUDA_VISIBLE_DEVICES="")
+- torch 2.4+, transformers 4.50+, jax 0.4.30, flax 0.8.5
+- Needle weights downloaded from huggingface.co/Cactus-Compute/needle to checkpoints/needle.pkl
+
+Bugs found and fixed
+--------------------
+1. Needle schema format bug
+   - Initial Needle output: [{"name":"get_weather","arguments":{"properties","properties"}}]
+   - Cause: Needle was being fed OpenAI JSON Schema ({type:"object", properties:{...}}). Needle was
+     trained on a flat schema ({location: {type, description, required}}) and echoed the literal
+     "properties" key back.
+   - Fix: added _convert_to_needle_schema() in backends/needle_backend.py that maps OpenAI-style
+     tool schemas to Needle's native flat form before calling generate().
+   - Result: Needle parse_success went from 8% to 84%, tool_match from 8% to 72%.
+
+2. Wrong benchmark queries
+   - Initial benchmark.py used invented queries (no IDs, no expected_tool, no expected_args_keys)
+     and was missing tool_match/args_match evaluation entirely.
+   - Fix: replaced BENCHMARK_QUERIES with the 50 spec queries (T1_01-T5_10) and implemented the
+     full evaluation per the spec (tool_match exact name; args_match all keys non-empty; relaxed
+     for T4 underspecified queries; T5_05 "2+2" requires no tool call).
+
+3. Qwen3 prompting bug
+   - Initial Qwen3 backend built a hand-rolled prompt that ignored Qwen3's native chat template
+     with tools=. Result: model ran out the full 256 tokens per query (~230s/query).
+   - Fix: switched to tokenizer.apply_chat_template(messages, tools=openai_tools,
+     enable_thinking=False) with max_new_tokens=128.
+   - Result: per-query latency dropped from ~230s to ~37s.
+
+Smoke tests (post-fix)
+----------------------
+$ python dispatcher.py --model needle --query "What's the weather in Tokyo?"
+  raw: [{"name":"get_weather","arguments":{"location":"Tokyo"}}]
+  parse_success: True
+
+$ python dispatcher.py --model qwen3 --query "What's the weather in Tokyo?"
+  raw: <tool_call>{"name": "get_weather", "arguments": {"location": "Tokyo"}}</tool_call>
+  parse_success: True
+
+Final stats
+-----------
+Needle: tool_match 72.0%, parse_success 84.0%, mean latency 10933 ms
+Qwen3:  tool_match 56.0%, parse_success 54.0%, mean latency 47863 ms
+
+Note: Qwen3 frequently answers implicit T3 queries in natural language instead of emitting a
+tool call (e.g. T3_01 "Should I bring an umbrella in Amsterdam today?" returns a chatty
+disclaimer about not having real-time data). This is honest Qwen3-0.6B behaviour, not a bug.
+Needle, trained narrowly on tool-call data, does not have this failure mode.

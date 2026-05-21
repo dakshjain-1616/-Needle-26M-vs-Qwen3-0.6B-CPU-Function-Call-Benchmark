@@ -1,0 +1,78 @@
+{
+  "needle": {
+    "n": 50,
+    "tool_match_rate": 0.72,
+    "args_match_rate_given_tool_match": 0.9722,
+    "parse_success_rate": 0.84,
+    "mean_latency_ms": 10933.2,
+    "median_latency_ms": 8848.5,
+    "accuracy_by_tier": {
+      "T1": 1.0,
+      "T2": 0.9,
+      "T3": 0.8,
+      "T4": 0.4,
+      "T5": 0.5
+    },
+    "latency_by_tier_ms": {
+      "T1": 11608.3,
+      "T2": 9553.5,
+      "T3": 9575.3,
+      "T4": 6730.5,
+      "T5": 17198.6
+    },
+    "per_tool_accuracy": {
+      "get_weather": 0.8,
+      "search_web": 0.5833,
+      "create_file": 0.8889,
+      "get_time": 0.875,
+      "run_command": 0.5
+    },
+    "failure_breakdown": {
+      "parse_fail": 8,
+      "wrong_tool": 7,
+      "wrong_args": 1
+    }
+  },
+  "qwen3": {
+    "n": 50,
+    "tool_match_rate": 0.56,
+    "args_match_rate_given_tool_match": 1.0,
+    "parse_success_rate": 0.54,
+    "mean_latency_ms": 47862.9,
+    "median_latency_ms": 39188.0,
+    "accuracy_by_tier": {
+      "T1": 1.0,
+      "T2": 0.9,
+      "T3": 0.1,
+      "T4": 0.2,
+      "T5": 0.6
+    },
+    "latency_by_tier_ms": {
+      "T1": 37425.3,
+      "T2": 38830.2,
+      "T3": 54308,
+      "T4": 52437.1,
+      "T5": 56313.8
+    },
+    "per_tool_accuracy": {
+      "get_weather": 0.7,
+      "search_web": 0.4167,
+      "create_file": 0.6667,
+      "get_time": 0.625,
+      "run_command": 0.4
+    },
+    "failure_breakdown": {
+      "parse_fail": 23,
+      "wrong_tool": 0,
+      "wrong_args": 0
+    }
+  },
+  "meta": {
+    "total_runs": 100,
+    "queries_per_model": 50,
+    "models": [
+      "needle",
+      "qwen3"
+    ]
+  }
+}
