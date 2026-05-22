@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 440" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">
+  <style>
+    .bg { fill: #0d1117; }
+    .panel { fill: #161b22; stroke: #30363d; stroke-width: 1; }
+    .title { fill: #e6edf3; font-weight: 700; font-size: 14px; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .sub { fill: #7d8590; font-size: 11px; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .query { fill: #e6edf3; }
+    .qbubble { fill: #1f2937; stroke: #374151; }
+    .code { fill: #d2a8ff; }
+    .key { fill: #79c0ff; }
+    .str { fill: #a5d6ff; }
+    .punct { fill: #8b949e; }
+    .prose { fill: #c9d1d9; }
+    .ok { fill: #3fb950; }
+    .bad { fill: #f85149; }
+    .label { fill: #7d8590; font-size: 11px; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .lat { fill: #e6edf3; font-weight: 700; font-family: ui-sans-serif, system-ui, sans-serif; }
+    .badge-ok { fill: #1a3326; stroke: #2ea043; }
+    .badge-bad { fill: #3d1a1a; stroke: #da3633; }
+  </style>
+
+  <rect class="bg" width="980" height="440"/>
+
+  <!-- Header -->
+  <text x="24" y="32" class="title" font-size="16">T3_01 — "Should I bring an umbrella in Amsterdam today?"</text>
+  <text x="24" y="52" class="sub">Same query. Same 5 tools. CPU-only. Animation at 10× real speed.</text>
+
+  <!-- ============ NEEDLE PANEL ============ -->
+  <g transform="translate(20,76)">
+    <rect class="panel" width="300" height="340" rx="8"/>
+    <text x="16" y="24" class="title">Needle (26M)</text>
+    <text x="16" y="42" class="sub">function-call specialist</text>
+
+    <!-- query bubble -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;1;1;1" keyTimes="0;0.02;0.99;1" dur="14s" repeatCount="indefinite"/>
+      <rect class="qbubble" x="16" y="58" width="268" height="40" rx="6"/>
+      <text x="26" y="82" class="query">Should I bring an umbrella…</text>
+    </g>
+
+    <!-- spinner (shows while "thinking") -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.03;0.04;0.135;0.14;1" dur="14s" repeatCount="indefinite"/>
+      <text x="16" y="130" class="label">thinking</text>
+      <circle cx="76" cy="126" r="3" fill="#7d8590">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="1s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="86" cy="126" r="3" fill="#7d8590">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="1s" begin="0.2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="96" cy="126" r="3" fill="#7d8590">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="1s" begin="0.4s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- output (appears at t=1.9s, 13.8s real /10 +0.5 buffer) -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.135;0.14;1" dur="14s" repeatCount="indefinite"/>
+      <text x="16" y="130" class="label">output</text>
+      <rect x="16" y="140" width="268" height="92" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="24" y="160" class="punct">[{</text>
+      <text x="24" y="178"><tspan class="key" dx="8">"name"</tspan><tspan class="punct">:</tspan> <tspan class="str">"get_weather"</tspan><tspan class="punct">,</tspan></text>
+      <text x="24" y="196"><tspan class="key" dx="8">"arguments"</tspan><tspan class="punct">: {</tspan></text>
+      <text x="24" y="214"><tspan class="key" dx="16">"location"</tspan><tspan class="punct">:</tspan> <tspan class="str">"Amsterdam"</tspan></text>
+      <text x="24" y="226" class="punct">}}]</text>
+
+      <!-- latency + verdict -->
+      <text x="16" y="262" class="label">latency</text>
+      <text x="80" y="262" class="lat">13,837 ms</text>
+      <g>
+        <rect class="badge-ok" x="16" y="278" width="268" height="44" rx="6"/>
+        <text x="32" y="298" class="ok" font-weight="700">✓ correct tool</text>
+        <text x="32" y="314" class="label">parse ✓  ·  args ✓</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============ QWEN3 PROMPTED PANEL ============ -->
+  <g transform="translate(340,76)">
+    <rect class="panel" width="300" height="340" rx="8"/>
+    <text x="16" y="24" class="title">Qwen3-0.6B prompted</text>
+    <text x="16" y="42" class="sub">+ "always emit a tool call" system prompt</text>
+
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;1;1;1" keyTimes="0;0.02;0.99;1" dur="14s" repeatCount="indefinite"/>
+      <rect class="qbubble" x="16" y="58" width="268" height="40" rx="6"/>
+      <text x="26" y="82" class="query">Should I bring an umbrella…</text>
+    </g>
+
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.03;0.04;0.31;0.32;1" dur="14s" repeatCount="indefinite"/>
+      <text x="16" y="130" class="label">thinking</text>
+      <circle cx="76" cy="126" r="3" fill="#7d8590">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="1s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="86" cy="126" r="3" fill="#7d8590">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="1s" begin="0.2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="96" cy="126" r="3" fill="#7d8590">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="1s" begin="0.4s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- output appears at ~4.2s -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.31;0.32;1" dur="14s" repeatCount="indefinite"/>
+      <text x="16" y="130" class="label">output</text>
+      <rect x="16" y="140" width="268" height="92" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="24" y="160" class="punct">&lt;tool_call&gt;</text>
+      <text x="24" y="178" class="punct">{</text>
+      <text x="24" y="196"><tspan class="key" dx="8">"name"</tspan><tspan class="punct">:</tspan> <tspan class="str">"get_weather"</tspan><tspan class="punct">,</tspan></text>
+      <text x="24" y="214"><tspan class="key" dx="8">"arguments"</tspan><tspan class="punct">: {</tspan><tspan class="key">"location"</tspan><tspan class="punct">:</tspan></text>
+      <text x="24" y="226"><tspan class="str" dx="8">"Amsterdam"</tspan><tspan class="punct">}}</tspan></text>
+
+      <text x="16" y="262" class="label">latency</text>
+      <text x="80" y="262" class="lat">37,405 ms</text>
+      <g>
+        <rect class="badge-ok" x="16" y="278" width="268" height="44" rx="6"/>
+        <text x="32" y="298" class="ok" font-weight="700">✓ correct tool</text>
+        <text x="32" y="314" class="label">parse ✓  ·  args ✓  ·  2.7× slower</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============ QWEN3 DEFAULT PANEL ============ -->
+  <g transform="translate(660,76)">
+    <rect class="panel" width="300" height="340" rx="8"/>
+    <text x="16" y="24" class="title">Qwen3-0.6B default</text>
+    <text x="16" y="42" class="sub">no system prompt</text>
+
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;1;1;1" keyTimes="0;0.02;0.99;1" dur="14s" repeatCount="indefinite"/>
+      <rect class="qbubble" x="16" y="58" width="268" height="40" rx="6"/>
+      <text x="26" y="82" class="query">Should I bring an umbrella…</text>
+    </g>
+
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.03;0.04;0.535;0.54;1" dur="14s" repeatCount="indefinite"/>
+      <text x="16" y="130" class="label">thinking</text>
+      <circle cx="76" cy="126" r="3" fill="#7d8590">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="1s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="86" cy="126" r="3" fill="#7d8590">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="1s" begin="0.2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="96" cy="126" r="3" fill="#7d8590">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="1s" begin="0.4s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- output appears at ~7.2s (67.1s real /10 +0.5) -->
+    <g opacity="0">
+      <animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.535;0.54;1" dur="14s" repeatCount="indefinite"/>
+      <text x="16" y="130" class="label">output</text>
+      <rect x="16" y="140" width="268" height="92" rx="6" fill="#0d1117" stroke="#30363d"/>
+      <text x="24" y="158" class="prose">Based on the current weather</text>
+      <text x="24" y="174" class="prose">in Amsterdam, it depends on</text>
+      <text x="24" y="190" class="prose">the temperature. However,</text>
+      <text x="24" y="206" class="prose">since I don't have real-time</text>
+      <text x="24" y="222" class="prose">data, I recommend checking…</text>
+
+      <text x="16" y="262" class="label">latency</text>
+      <text x="80" y="262" class="lat">67,107 ms</text>
+      <g>
+        <rect class="badge-bad" x="16" y="278" width="268" height="44" rx="6"/>
+        <text x="32" y="298" class="bad" font-weight="700">✗ no tool call</text>
+        <text x="32" y="314" class="label">defaulted to prose  ·  parse ✗</text>
+      </g>
+    </g>
+  </g>
+</svg>

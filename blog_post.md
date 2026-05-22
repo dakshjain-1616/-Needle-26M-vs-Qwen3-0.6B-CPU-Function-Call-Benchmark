@@ -36,6 +36,12 @@ Three takeaways before we get into the numbers:
 
 This is the real shape of the choice between these two models. Read on for the breakdown.
 
+<p align="center">
+  <img src="results/demo_umbrella.svg" alt="T3_01 umbrella query: Needle vs Qwen3 prompted vs Qwen3 default, side-by-side" width="100%">
+</p>
+
+*Above: the T3_01 query running through all three models. Real outputs, real latencies (animation at 10× real speed). Needle dispatches in 13.8 s; prompted Qwen3 dispatches in 37.4 s; default Qwen3 writes a 67 s essay and never calls a tool.*
+
 ---
 
 ## The benchmark
@@ -233,7 +239,7 @@ Devanagari is Needle's hardest tier. Qwen3's tokenizer handles it fine.
 [{"name":"get_time","arguments":{}}]
 ```
 
-This is Needle's characteristic failure: commits with confidence, wrong tool. Five such cases across the 50 queries, mostly on `run_command` requests phrased indirectly.
+This is Needle's characteristic failure: commits with confidence, wrong tool. Seven such cases across the 50 queries, concentrated on `run_command` and `search_web` requests phrased indirectly — exactly the two tools the per-tool table flagged as Needle's weak spots.
 
 ---
 
